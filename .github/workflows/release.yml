@@ -1,0 +1,78 @@
+name: Release
+
+# Compila su GitHub (runner pulito, sorgenti di questo repository), firma con SignPath
+# se configurato e pubblica la Release.
+#   git tag v2.0.0 && git push origin v2.0.0
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read   # richiesto da SignPath per verificare l'origine dell'artifact
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Prepara l'eseguibile da firmare
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/ssas-installer.exe dist/ssas-installer.exe
+
+      - name: Carica l'eseguibile non firmato
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned
+          path: dist/ssas-installer.exe
+
+      # Attivo solo dopo l'approvazione di SignPath Foundation: impostare la variabile
+      # SIGNPATH_ORGANIZATION_ID e il segreto SIGNPATH_API_TOKEN del repository.
+      - name: Firma con SignPath
+        id: sign
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ssas-installer
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Scegli il file da pubblicare
+        shell: pwsh
+        run: |
+          $src = if (Test-Path signed/ssas-installer.exe) { 'signed/ssas-installer.exe' } else { 'dist/ssas-installer.exe' }
+          $tag = '${{ github.ref_name }}'
+          $ver = if ($tag -like 'v*') { $tag.Substring(1) } else { 'dev' }
+          $name = "ssas-installer-$ver-windows-x64.exe"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $src "out/$name"
+          $hash = (Get-FileHash "out/$name" -Algorithm SHA256).Hash.ToLower()
+          Set-Content out/SHA256SUMS.txt "$hash  $name" -Encoding ascii
+          $sig = (Get-AuthenticodeSignature "out/$name").Status
+          "Firma Authenticode: $sig"
+          "ASSET=out/$name" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Pubblica la Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ASSET }}
+            out/SHA256SUMS.txt
+          generate_release_notes: true
