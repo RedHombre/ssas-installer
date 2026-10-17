@@ -25,6 +25,13 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+      - name: Verifica i metadati dell'eseguibile
+        shell: pwsh
+        run: |
+          $vi = (Get-Item target/release/ssas-installer.exe).VersionInfo
+          $vi | Format-List ProductName, ProductVersion, FileVersion, FileDescription, CompanyName, LegalCopyright
+          if (-not $vi.ProductName -or -not $vi.ProductVersion) { throw 'Metadati mancanti nell eseguibile' }
+
       - name: Prepara l'eseguibile da firmare
         shell: pwsh
         run: |
@@ -76,3 +83,7 @@ jobs:
             ${{ env.ASSET }}
             out/SHA256SUMS.txt
           generate_release_notes: true
+          body: |
+            Installazione guidata di SSAS AI (Windows x64). Scarica `ssas-installer-*-windows-x64.exe`, avvialo e indica la cartella del progetto SSAS AI. Verifica il download con `SHA256SUMS.txt`.
+
+            **Code signing policy**: free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). Only binaries built from this repository by the GitHub Actions workflow are signed. Privacy: this program does not collect or transmit any data. Details: [README](https://github.com/RedHombre/ssas-installer#code-signing-policy).
