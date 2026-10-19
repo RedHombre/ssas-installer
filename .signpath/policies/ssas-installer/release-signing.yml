@@ -1,0 +1,6 @@
+# Policy SignPath per la signing policy "release-signing" del progetto "ssas-installer":
+# la firma è accettata solo se tutti i job del workflow girano su runner ospitati da GitHub.
+github-build-policies:
+  version: '1.0'
+  runners:
+    require_github_hosted: true

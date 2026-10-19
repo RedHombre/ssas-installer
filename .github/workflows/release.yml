@@ -50,7 +50,7 @@ jobs:
       - name: Firma con SignPath
         id: sign
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -58,7 +58,18 @@ jobs:
           signing-policy-slug: release-signing
           github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
           wait-for-completion: true
+          # le richieste vanno approvate a mano nel portale SignPath: lascia tempo
+          wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: signed
+
+      - name: Verifica la firma
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: |
+          $s = Get-AuthenticodeSignature signed/ssas-installer.exe
+          $s | Format-List Status, StatusMessage
+          $s.SignerCertificate | Format-List Subject, Issuer, NotAfter
+          if ($s.Status -ne 'Valid') { throw "Firma non valida: $($s.Status)" }
 
       - name: Scegli il file da pubblicare
         shell: pwsh
