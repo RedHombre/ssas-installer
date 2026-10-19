@@ -18,6 +18,19 @@ Scarica `ssas-installer-<versione>-windows-x64.exe` dalle [Release](../../releas
 
 Verifica il download con `SHA256SUMS.txt` (`Get-FileHash <file> -Algorithm SHA256`).
 
+## Modifiche al sistema e disinstallazione
+
+`ssas-installer.exe` è portabile: non si installa, non scrive nel registro e si elimina cancellando il file. Le modifiche al sistema avvengono solo dopo aver premuto **Installa** e sono elencate nel log a schermo; con **Solo simulazione** non viene eseguito alcun comando.
+
+*The installer itself is portable. It changes the system only after you press **Installa**, and every command is shown in the log. To uninstall what it set up:*
+
+| Modalità | Cosa crea | Come rimuoverlo |
+|---|---|---|
+| **Docker** | container, rete e volumi del progetto Compose nella cartella dei file generati | `docker compose -f <cartella>\docker-compose.yml down -v` (senza `-v` i dati restano), poi elimina la cartella |
+| **Kubernetes** | namespace (default `ssas-ai`) con tutte le risorse; facoltativi ingress-nginx, cert-manager e un ClusterIssuer | `kubectl delete namespace ssas-ai`; se installati dall'installer: `kubectl delete clusterissuer <nome>`, `helm uninstall cert-manager -n cert-manager`, `helm uninstall ingress-nginx -n ingress-nginx` |
+| **Windows** | cartella di installazione (default `C:\ssas-ai`), servizio Windows (default `ssas-ai`), prerequisiti (Python, .NET, PowerShell 7, NSSM, PostgreSQL) | `nssm remove ssas-ai confirm` da prompt Amministratore, elimina la cartella; i prerequisiti si disinstallano da *Impostazioni → App* |
+| **Proxy SSAS** | cartella del proxy (default `C:\service`), servizio NSSM o attività pianificata (default `SsasProxy`) | `nssm remove SsasProxy confirm` oppure `Unregister-ScheduledTask -TaskName SsasProxy`, poi elimina la cartella |
+
 ## Compilare
 
 ```powershell
